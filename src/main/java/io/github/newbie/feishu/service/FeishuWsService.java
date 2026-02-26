@@ -1,0 +1,113 @@
+package io.github.newbie.feishu.service;
+
+import com.lark.oapi.core.request.EventReq;
+import com.lark.oapi.core.utils.Jsons;
+import com.lark.oapi.event.CustomEventHandler;
+import com.lark.oapi.event.EventDispatcher;
+import com.lark.oapi.event.cardcallback.P2CardActionTriggerHandler;
+import com.lark.oapi.event.cardcallback.model.CallBackToast;
+import com.lark.oapi.event.cardcallback.model.P2CardActionTrigger;
+import com.lark.oapi.event.cardcallback.model.P2CardActionTriggerResponse;
+import io.github.newbie.feishu.config.FeishuProperties;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.SmartLifecycle;
+import org.springframework.stereotype.Service;
+
+import java.nio.charset.StandardCharsets;
+import java.util.Map;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class FeishuWsService implements SmartLifecycle {
+
+    private final FeishuProperties feishuProperties;
+    private final WebhookForwardService webhookForwardService;
+
+    private volatile com.lark.oapi.ws.Client wsClient;
+    private volatile boolean running = false;
+
+    @Override
+    public void start() {
+        if (feishuProperties.getAppId() == null || feishuProperties.getAppId().isBlank()) {
+            log.warn("feishu.app-id 未配置，跳过 WebSocket 长连接");
+            return;
+        }
+
+        EventDispatcher eventDispatcher = EventDispatcher.newBuilder("", "")
+                .onCustomizedEvent("*", new CustomEventHandler() {
+                    @Override
+                    @SuppressWarnings("unchecked")
+                    public void handle(EventReq event) throws Exception {
+                        String eventData = new String(event.getBody(), StandardCharsets.UTF_8);
+
+                        String eventType = "unknown";
+                        try {
+                            Map<String, Object> parsed = Jsons.DEFAULT.fromJson(eventData, Map.class);
+                            Map<String, Object> header = (Map<String, Object>) parsed.get("header");
+                            if (header != null && header.get("event_type") != null) {
+                                eventType = (String) header.get("event_type");
+                            }
+                        } catch (Exception ignored) {
+                        }
+
+                        log.info("收到事件: type={}", eventType);
+                        Object payload = parseJsonSafely(eventData);
+                        webhookForwardService.forwardEvent(eventType, payload);
+                    }
+                })
+                .onP2CardActionTrigger(new P2CardActionTriggerHandler() {
+                    @Override
+                    public P2CardActionTriggerResponse handle(P2CardActionTrigger event) throws Exception {
+                        String eventJson = Jsons.DEFAULT.toJson(event.getEvent());
+                        log.info("收到卡片回调: {}", eventJson);
+
+                        Object payload = parseJsonSafely(eventJson);
+                        webhookForwardService.forwardCardAction(payload);
+
+                        P2CardActionTriggerResponse resp = new P2CardActionTriggerResponse();
+                        CallBackToast toast = new CallBackToast();
+                        toast.setType("info");
+                        toast.setContent("已收到");
+                        resp.setToast(toast);
+                        return resp;
+                    }
+                })
+                .build();
+
+        wsClient = new com.lark.oapi.ws.Client.Builder(
+                feishuProperties.getAppId(),
+                feishuProperties.getAppSecret()
+        ).eventHandler(eventDispatcher).build();
+
+        wsClient.start();
+        running = true;
+        log.info("飞书 WebSocket 长连接已启动");
+    }
+
+    @Override
+    public void stop() {
+        running = false;
+        log.info("飞书 WebSocket 长连接已停止");
+    }
+
+    @Override
+    public boolean isRunning() {
+        return running;
+    }
+
+    @Override
+    public int getPhase() {
+        return Integer.MAX_VALUE;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Object parseJsonSafely(String json) {
+        try {
+            return Jsons.DEFAULT.fromJson(json, Map.class);
+        } catch (Exception e) {
+            return json;
+        }
+    }
+}
