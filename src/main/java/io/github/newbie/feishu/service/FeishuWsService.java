@@ -14,7 +14,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.SmartLifecycle;
 import org.springframework.stereotype.Service;
 
+import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
 import java.util.Map;
 
 @Slf4j
@@ -35,28 +37,29 @@ public class FeishuWsService implements SmartLifecycle {
             return;
         }
 
-        EventDispatcher eventDispatcher = EventDispatcher.newBuilder("", "")
-                .onCustomizedEvent("*", new CustomEventHandler() {
-                    @Override
-                    @SuppressWarnings("unchecked")
-                    public void handle(EventReq event) throws Exception {
-                        String eventData = new String(event.getBody(), StandardCharsets.UTF_8);
+        CustomEventHandler catchAllHandler = new CustomEventHandler() {
+            @Override
+            @SuppressWarnings("unchecked")
+            public void handle(EventReq event) throws Exception {
+                String eventData = new String(event.getBody(), StandardCharsets.UTF_8);
 
-                        String eventType = "unknown";
-                        try {
-                            Map<String, Object> parsed = Jsons.DEFAULT.fromJson(eventData, Map.class);
-                            Map<String, Object> header = (Map<String, Object>) parsed.get("header");
-                            if (header != null && header.get("event_type") != null) {
-                                eventType = (String) header.get("event_type");
-                            }
-                        } catch (Exception ignored) {
-                        }
-
-                        log.info("收到事件: type={}", eventType);
-                        Object payload = parseJsonSafely(eventData);
-                        webhookForwardService.forwardEvent(eventType, payload);
+                String eventType = "unknown";
+                try {
+                    Map<String, Object> parsed = Jsons.DEFAULT.fromJson(eventData, Map.class);
+                    Map<String, Object> header = (Map<String, Object>) parsed.get("header");
+                    if (header != null && header.get("event_type") != null) {
+                        eventType = (String) header.get("event_type");
                     }
-                })
+                } catch (Exception ignored) {
+                }
+
+                log.info("收到事件: type={}", eventType);
+                Object payload = parseJsonSafely(eventData);
+                webhookForwardService.forwardEvent(eventType, payload);
+            }
+        };
+
+        EventDispatcher eventDispatcher = EventDispatcher.newBuilder("", "")
                 .onP2CardActionTrigger(new P2CardActionTriggerHandler() {
                     @Override
                     public P2CardActionTriggerResponse handle(P2CardActionTrigger event) throws Exception {
@@ -76,6 +79,8 @@ public class FeishuWsService implements SmartLifecycle {
                 })
                 .build();
 
+        installCatchAllHandler(eventDispatcher, catchAllHandler);
+
         wsClient = new com.lark.oapi.ws.Client.Builder(
                 feishuProperties.getAppId(),
                 feishuProperties.getAppSecret()
@@ -84,6 +89,31 @@ public class FeishuWsService implements SmartLifecycle {
         wsClient.start();
         running = true;
         log.info("飞书 WebSocket 长连接已启动");
+    }
+
+    /**
+     * SDK 的 EventDispatcher 不支持通配事件处理器，通过反射将内部的事件处理器 Map
+     * 替换为一个带默认兜底的 Map，使任何未显式注册的事件类型都能被 catchAllHandler 捕获并转发。
+     */
+    @SuppressWarnings("unchecked")
+    private void installCatchAllHandler(EventDispatcher dispatcher, CustomEventHandler fallback) {
+        try {
+            Field field = EventDispatcher.class.getDeclaredField("eventType2EventHandler");
+            field.setAccessible(true);
+            Map<String, Object> original = (Map<String, Object>) field.get(dispatcher);
+
+            Map<String, Object> catchAllMap = new HashMap<>(original) {
+                @Override
+                public Object get(Object key) {
+                    Object handler = super.get(key);
+                    return handler != null ? handler : fallback;
+                }
+            };
+
+            field.set(dispatcher, catchAllMap);
+        } catch (Exception e) {
+            log.warn("安装 catch-all 事件处理器失败，未注册的事件类型将无法被转发", e);
+        }
     }
 
     @Override
