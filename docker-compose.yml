@@ -1,0 +1,10 @@
+services:
+  api:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - FEISHU_APP_ID=${FEISHU_APP_ID}
+      - FEISHU_APP_SECRET=${FEISHU_APP_SECRET}
+      - FEISHU_WEBHOOK_URL=${FEISHU_WEBHOOK_URL}
+    restart: unless-stopped

@@ -1,0 +1,8 @@
+.git
+.idea
+target
+*.md
+.gitattributes
+.gitignore
+.dockerignore
+.env
