@@ -2,7 +2,7 @@ services:
   feishu-bridge:
     build: .
     ports:
-      - "8080:8080"
+      - "9811:9811"
     environment:
       - FEISHU_APP_ID=${FEISHU_APP_ID}
       - FEISHU_APP_SECRET=${FEISHU_APP_SECRET}

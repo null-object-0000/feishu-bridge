@@ -88,7 +88,7 @@ POST /api/feishu/{飞书 API 路径}
 调用示例 — 发送消息：
 
 ```bash
-curl -X POST http://localhost:8080/api/feishu/im/v1/messages?receive_id_type=open_id \
+curl -X POST http://localhost:9811/api/feishu/im/v1/messages?receive_id_type=open_id \
   -H "Content-Type: application/json" \
   -d '{
     "receive_id": "ou_xxxxxxxxxxxxxxxxxxxxxxxxxx",
@@ -170,7 +170,7 @@ FEISHU_WEBHOOK_URLS=https://api.dify.ai/v1/workflows/run
 
 4. **在 Dify Workflow 中添加 HTTP 请求节点**，用于回复飞书用户。请求配置：
 
-   - URL: `http://feishu-bridge:8080/api/feishu/im/v1/messages?receive_id_type=open_id`
+   - URL: `http://feishu-bridge:9811/api/feishu/im/v1/messages?receive_id_type=open_id`
    - Method: POST
    - Body:
 
