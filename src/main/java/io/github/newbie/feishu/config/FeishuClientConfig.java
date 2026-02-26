@@ -6,6 +6,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import java.net.http.HttpClient;
+import java.time.Duration;
 
 @Configuration
 @EnableConfigurationProperties(FeishuProperties.class)
@@ -18,6 +19,8 @@ public class FeishuClientConfig {
 
     @Bean
     public HttpClient httpClient() {
-        return HttpClient.newHttpClient();
+        return HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(10))
+                .build();
     }
 }

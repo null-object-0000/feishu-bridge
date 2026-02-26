@@ -11,6 +11,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -58,6 +59,7 @@ public class WebhookForwardService {
                         .uri(URI.create(url))
                         .header("Content-Type", "application/json")
                         .POST(HttpRequest.BodyPublishers.ofString(json))
+                        .timeout(Duration.ofSeconds(30))
                         .build();
                 httpClient.send(request, HttpResponse.BodyHandlers.discarding());
                 log.info("webhook 转发成功: type={}, event_type={}, url={}", type, eventType, url);
