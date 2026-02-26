@@ -1,0 +1,22 @@
+{
+  "name": "feishu-bridge",
+  "version": "1.0.0",
+  "description": "飞书桥接服务 —— 连接飞书开放平台与外部自动化工作流，提供 token 获取、API 代理转发、事件/回调 webhook 转发能力。",
+  "keywords": [
+    "feishu",
+    "dify"
+  ],
+  "homepage": "https://github.com/null-object-0000/feishu-bridge#readme",
+  "bugs": {
+    "url": "https://github.com/null-object-0000/feishu-bridge/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/null-object-0000/feishu-bridge.git"
+  },
+  "license": "MIT",
+  "author": "null-object-0000",
+  "scripts": {
+    "build": "cd integrations && dify plugin package ./dify-plugin"
+  }
+}

@@ -1,6 +1,6 @@
-# newbie-feishu
+# Feishu Bridge
 
-飞书开放平台网关服务 —— 提供 token 获取、API 代理转发、事件/回调 webhook 转发能力。
+飞书桥接服务 —— 连接飞书开放平台与外部自动化工作流，提供 token 获取、API 代理转发、事件/回调 webhook 转发能力。
 
 ## 功能特性
 
@@ -9,6 +9,13 @@
 - **WebSocket 长连接** — 基于飞书 SDK 长连接机制接收事件订阅和卡片回调
 - **Webhook 转发** — 将接收到的事件和回调以 JSON 格式异步 POST 到配置的目标 URL
 - **Docker 一键部署** — 通过环境变量配置，`docker compose up -d` 即可启动
+
+## 集成插件
+
+| 平台 | 插件 | 说明 |
+|------|------|------|
+| n8n | [Feishu Bridge Trigger](integrations/n8n-plugin/) | 接收飞书事件，触发 n8n 工作流 |
+| Dify | [Feishu Bridge](integrations/dify-plugin/) | 接收飞书事件，触发 Dify 工作流 |
 
 ## 快速开始
 
@@ -86,7 +93,7 @@ curl -X POST http://localhost:8080/api/feishu/im/v1/messages?receive_id_type=ope
   -d '{
     "receive_id": "ou_xxxxxxxxxxxxxxxxxxxxxxxxxx",
     "msg_type": "text",
-    "content": "{\"text\": \"Hello from newbie-feishu!\"}"
+    "content": "{\"text\": \"Hello from Feishu Bridge!\"}"
   }'
 ```
 
@@ -131,27 +138,27 @@ Authorization: Bearer t-g1xxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 ## 使用场景：Dify 接入
 
-newbie-feishu 可以作为飞书与 [Dify](https://dify.ai) 之间的消息桥梁，实现飞书机器人对接 Dify 的 AI 工作流。
+Feishu Bridge 可以作为飞书与 [Dify](https://dify.ai) 之间的消息桥梁，实现飞书机器人对接 Dify 的 AI 工作流。
 
 ### 架构
 
 ```
 飞书用户发消息
     ↓
-飞书服务端 ──WebSocket长连接──→ newbie-feishu
+飞书服务端 ──WebSocket长连接──→ Feishu Bridge
     ↓
-newbie-feishu ──webhook POST──→ Dify Workflow（接收消息、调用 AI）
+Feishu Bridge ──webhook POST──→ Dify Workflow（接收消息、调用 AI）
     ↓
-Dify ──POST /api/feishu/im/v1/messages──→ newbie-feishu（自动注入 token）
+Dify ──POST /api/feishu/im/v1/messages──→ Feishu Bridge（自动注入 token）
     ↓
-newbie-feishu ──转发──→ 飞书服务端
+Feishu Bridge ──转发──→ 飞书服务端
     ↓
 飞书用户收到 AI 回复
 ```
 
 ### 配置步骤
 
-1. **部署 newbie-feishu**，配置飞书应用的 App ID / App Secret
+1. **部署 Feishu Bridge**，配置飞书应用的 App ID / App Secret
 
 2. **在 Dify 中创建 Workflow**，添加一个 HTTP 触发器（Webhook），获取 Webhook URL
 
@@ -163,7 +170,7 @@ FEISHU_WEBHOOK_URLS=https://api.dify.ai/v1/workflows/run
 
 4. **在 Dify Workflow 中添加 HTTP 请求节点**，用于回复飞书用户。请求配置：
 
-   - URL: `http://newbie-feishu:8080/api/feishu/im/v1/messages?receive_id_type=open_id`
+   - URL: `http://feishu-bridge:8080/api/feishu/im/v1/messages?receive_id_type=open_id`
    - Method: POST
    - Body:
 
@@ -175,7 +182,7 @@ FEISHU_WEBHOOK_URLS=https://api.dify.ai/v1/workflows/run
 }
 ```
 
-Dify 无需管理飞书的 access_token，newbie-feishu 会自动注入认证信息。
+Dify 无需管理飞书的 access_token，Feishu Bridge 会自动注入认证信息。
 
 ## 注意事项
 
