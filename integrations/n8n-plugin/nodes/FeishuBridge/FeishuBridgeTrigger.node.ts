@@ -6,19 +6,19 @@ import type {
 	IWebhookResponseData,
 } from 'n8n-workflow';
 
-export class NewbieFeishuTrigger implements INodeType {
+export class FeishuBridgeTrigger implements INodeType {
 	description: INodeTypeDescription = {
-		displayName: 'Newbie Feishu Trigger',
-		name: 'newbieFeishuTrigger',
-		icon: 'file:newbie-feishu.svg',
+		displayName: 'Feishu Bridge Trigger',
+		name: 'feishuBridgeTrigger',
+		icon: 'file:feishu-bridge.svg',
 		group: ['trigger'],
 		version: 1,
 		usableAsTool: true,
 		subtitle: '={{$parameter["eventType"] || "all events"}}',
 		description:
-			'Triggers a workflow when a Feishu event is received from the newbie-feishu gateway',
+			'Listen to Feishu events and messages via Feishu Bridge gateway',
 		defaults: {
-			name: 'Feishu Event',
+			name: 'Feishu Bridge Trigger',
 		},
 		inputs: [],
 		outputs: ['main'],

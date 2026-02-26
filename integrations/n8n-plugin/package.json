@@ -1,9 +1,9 @@
 {
-	"name": "n8n-nodes-newbie-feishu",
+	"name": "n8n-nodes-feishu-bridge",
 	"version": "0.1.0",
-	"description": "n8n trigger node for Feishu events via newbie-feishu gateway",
+	"description": "n8n community node for Feishu Bridge – receive Feishu events and trigger workflows",
 	"license": "MIT",
-	"homepage": "https://github.com/null-object-0000/newbie-feishu",
+	"homepage": "https://github.com/null-object-0000/feishu-bridge",
 	"keywords": [
 		"n8n-community-node-package"
 	],
@@ -12,7 +12,7 @@
 	},
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/null-object-0000/newbie-feishu.git"
+		"url": "https://github.com/null-object-0000/feishu-bridge.git"
 	},
 	"scripts": {
 		"build": "n8n-node build",
@@ -31,7 +31,7 @@
 		"strict": true,
 		"credentials": [],
 		"nodes": [
-			"dist/nodes/NewbieFeishu/NewbieFeishuTrigger.node.js"
+			"dist/nodes/FeishuBridge/FeishuBridgeTrigger.node.js"
 		]
 	},
 	"devDependencies": {

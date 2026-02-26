@@ -9,11 +9,11 @@
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <groupId>io.github.null-object-0000</groupId>
-    <artifactId>newbie-feishu</artifactId>
+    <artifactId>feishu-bridge</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>newbie-feishu</name>
-    <description>newbie-feishu</description>
-    <url>https://github.com/null-object-0000/newbie-feishu</url>
+    <name>feishu-bridge</name>
+    <description>Feishu Bridge - 飞书开放平台桥接服务</description>
+    <url>https://github.com/null-object-0000/feishu-bridge</url>
 
     <licenses>
         <license>
@@ -31,9 +31,9 @@
     </developers>
 
     <scm>
-        <url>https://github.com/null-object-0000/newbie-feishu</url>
-        <connection>scm:git:git://github.com/null-object-0000/newbie-feishu.git</connection>
-        <developerConnection>scm:git:ssh://github.com/null-object-0000/newbie-feishu.git</developerConnection>
+        <url>https://github.com/null-object-0000/feishu-bridge</url>
+        <connection>scm:git:git://github.com/null-object-0000/feishu-bridge.git</connection>
+        <developerConnection>scm:git:ssh://github.com/null-object-0000/feishu-bridge.git</developerConnection>
     </scm>
 
     <properties>

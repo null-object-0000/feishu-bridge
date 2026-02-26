@@ -1,0 +1,21 @@
+identity:
+  name: "feishu-bridge"
+  author: "null-object-0000"
+  label:
+    en_US: "Feishu Bridge"
+    zh_Hans: "飞书桥接器"
+    ja_JP: "Feishu Bridge"
+  description:
+    en_US: "Receive Feishu events forwarded by Feishu Bridge gateway and trigger Dify workflows."
+    zh_Hans: "接收 Feishu Bridge 网关转发的飞书事件，触发 Dify 工作流。"
+    ja_JP: "Feishu Bridgeゲートウェイから転送された飛書イベントを受信し、Difyワークフローをトリガーします。"
+  icon: "icon.jpg"
+
+subscription_schema: []
+
+events:
+  - events/message_receive_v1.yaml
+
+extra:
+  python:
+    source: provider/feishu_bridge.py

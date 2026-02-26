@@ -30,8 +30,8 @@
 1. 克隆项目：
 
 ```bash
-git clone https://github.com/null-object-0000/newbie-feishu.git
-cd newbie-feishu
+git clone https://github.com/null-object-0000/feishu-bridge.git
+cd feishu-bridge
 ```
 
 2. 创建 `.env` 文件：

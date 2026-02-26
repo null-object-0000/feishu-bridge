@@ -42,7 +42,7 @@ output_schema:
       description: "Event ID for deduplication"
     raw_payload:
       type: object
-      description: "Complete raw event payload from newbie-feishu gateway"
+      description: "Complete raw event payload from Feishu Bridge gateway"
 
 extra:
   python:

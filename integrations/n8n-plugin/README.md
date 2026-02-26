@@ -1,14 +1,14 @@
-# n8n-nodes-newbie-feishu
+# n8n-nodes-feishu-bridge
 
-[newbie-feishu](https://github.com/null-object-0000/newbie-feishu) 网关的 n8n 触发器节点。
+[Feishu Bridge](https://github.com/null-object-0000/feishu-bridge) 网关的 n8n 触发器节点。
 
 接收网关转发的飞书事件（消息、卡片回调等），触发 n8n 工作流。
 
 ## 节点
 
-### Newbie Feishu Trigger
+### Feishu Bridge Trigger
 
-Webhook 触发器，接收 newbie-feishu 网关的事件推送。
+Webhook 触发器，接收 Feishu Bridge 网关的事件推送。
 
 **配置项：**
 
@@ -62,9 +62,9 @@ docker compose up --build
 
 ## 使用方式
 
-1. 在 n8n 中添加 **Feishu Event** 触发器节点
+1. 在 n8n 中添加 **Feishu Bridge Trigger** 触发器节点
 2. 配置 `Path`（默认 `feishu-webhook`）
-3. 激活工作流后，将 n8n 的 Webhook 地址添加到 newbie-feishu 网关的 `FEISHU_WEBHOOK_URLS` 中（多个地址用逗号分隔）：
+3. 激活工作流后，将 n8n 的 Webhook 地址添加到 Feishu Bridge 网关的 `FEISHU_WEBHOOK_URLS` 中（多个地址用逗号分隔）：
 
 ```
 http://<n8n-host>:5678/webhook/feishu-webhook

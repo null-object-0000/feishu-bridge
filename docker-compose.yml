@@ -1,5 +1,5 @@
 services:
-  api:
+  feishu-bridge:
     build: .
     ports:
       - "8080:8080"

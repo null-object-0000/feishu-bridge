@@ -8,7 +8,7 @@ from dify_plugin.interfaces.trigger import Event
 
 
 class MessageReceiveV1Event(Event):
-    """Handle im.message.receive_v1 events from the newbie-feishu gateway.
+    """Handle im.message.receive_v1 events from the Feishu Bridge gateway.
 
     The gateway forwards the complete Feishu event inside a wrapper:
     {type, event_type, timestamp, payload}
