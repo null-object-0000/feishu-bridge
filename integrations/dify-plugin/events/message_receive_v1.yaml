@@ -1,0 +1,49 @@
+identity:
+  name: "message_receive_v1"
+  author: "null-object-0000"
+  label:
+    en_US: "Message Received"
+    zh_Hans: "收到消息"
+    ja_JP: "メッセージ受信"
+
+description:
+  en_US: "Triggered when a message is received in Feishu (im.message.receive_v1)."
+  zh_Hans: "当飞书收到消息时触发（im.message.receive_v1）。"
+  ja_JP: "飛書でメッセージを受信した時にトリガーされます（im.message.receive_v1）。"
+
+parameters: []
+
+output_schema:
+  type: object
+  properties:
+    sender_id:
+      type: object
+      description: "Sender ID object containing union_id, user_id, open_id"
+    message_id:
+      type: string
+      description: "Message ID"
+    chat_id:
+      type: string
+      description: "Chat/Group ID"
+    chat_type:
+      type: string
+      description: "Chat type: p2p or group"
+    message_type:
+      type: string
+      description: "Message type: text, image, etc."
+    content:
+      type: string
+      description: "Message content (JSON string)"
+    create_time:
+      type: string
+      description: "Message creation timestamp (ms)"
+    event_id:
+      type: string
+      description: "Event ID for deduplication"
+    raw_payload:
+      type: object
+      description: "Complete raw event payload from newbie-feishu gateway"
+
+extra:
+  python:
+    source: events/message_receive_v1.py

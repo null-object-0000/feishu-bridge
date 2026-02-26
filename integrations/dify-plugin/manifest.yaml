@@ -1,0 +1,33 @@
+version: 0.0.1
+type: plugin
+author: null-object-0000
+name: newbie-feishu
+label:
+  en_US: Newbie Feishu
+  zh_Hans: Newbie 飞书
+  ja_JP: Newbie 飛書
+description:
+  en_US: Feishu trigger plugin for Dify, receives events from newbie-feishu gateway and triggers workflows.
+  zh_Hans: 飞书触发器插件，接收 newbie-feishu 网关转发的飞书事件并触发 Dify 工作流。
+  ja_JP: Dify用飛書トリガープラグイン。newbie-feishuゲートウェイからイベントを受信し、ワークフローをトリガーします。
+icon: icon.jpg
+resource:
+  memory: 268435456
+  permission: {}
+plugins:
+  triggers:
+    - provider/newbie_feishu.yaml
+meta:
+  version: 0.0.1
+  arch:
+    - amd64
+    - arm64
+  runner:
+    language: python
+    version: "3.12"
+    entrypoint: main
+  minimum_dify_version: 1.13.0
+created_at: 2026-02-26T17:47:57.4970197+08:00
+privacy: PRIVACY.md
+repo: https://github.com/null-object-0000/newbie-feishu
+verified: false

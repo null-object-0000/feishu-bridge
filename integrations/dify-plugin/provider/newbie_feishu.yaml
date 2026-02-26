@@ -1,0 +1,21 @@
+identity:
+  name: "newbie_feishu"
+  author: "null-object-0000"
+  label:
+    en_US: "Newbie Feishu"
+    zh_Hans: "Newbie 飞书"
+    ja_JP: "Newbie 飛書"
+  description:
+    en_US: "Receive Feishu events forwarded by newbie-feishu gateway and trigger Dify workflows."
+    zh_Hans: "接收 newbie-feishu 网关转发的飞书事件，触发 Dify 工作流。"
+    ja_JP: "newbie-feishuゲートウェイから転送された飛書イベントを受信し、Difyワークフローをトリガーします。"
+  icon: "icon.jpg"
+
+subscription_schema: []
+
+events:
+  - events/message_receive_v1.yaml
+
+extra:
+  python:
+    source: provider/newbie_feishu.py
