@@ -1,7 +1,7 @@
-package io.github.newbie.feishu.service;
+package io.github.feishu.bridge.service;
 
 import com.lark.oapi.core.utils.Jsons;
-import io.github.newbie.feishu.config.FeishuProperties;
+import io.github.feishu.bridge.config.FeishuProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;

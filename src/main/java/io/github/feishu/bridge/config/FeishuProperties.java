@@ -1,4 +1,4 @@
-package io.github.newbie.feishu.config;
+package io.github.feishu.bridge.config;
 
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;

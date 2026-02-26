@@ -1,4 +1,4 @@
-package io.github.newbie.feishu.service;
+package io.github.feishu.bridge.service;
 
 import com.lark.oapi.core.request.EventReq;
 import com.lark.oapi.core.utils.Jsons;
@@ -8,7 +8,7 @@ import com.lark.oapi.event.cardcallback.P2CardActionTriggerHandler;
 import com.lark.oapi.event.cardcallback.model.CallBackToast;
 import com.lark.oapi.event.cardcallback.model.P2CardActionTrigger;
 import com.lark.oapi.event.cardcallback.model.P2CardActionTriggerResponse;
-import io.github.newbie.feishu.config.FeishuProperties;
+import io.github.feishu.bridge.config.FeishuProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.SmartLifecycle;

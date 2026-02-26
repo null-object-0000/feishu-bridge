@@ -1,4 +1,4 @@
-package io.github.newbie.feishu.config;
+package io.github.feishu.bridge.config;
 
 import com.lark.oapi.Client;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;

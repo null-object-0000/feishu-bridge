@@ -1,11 +1,11 @@
-package io.github.newbie.feishu.controller;
+package io.github.feishu.bridge.controller;
 
 import com.lark.oapi.Client;
 import com.lark.oapi.core.utils.Jsons;
 import com.lark.oapi.service.auth.v3.model.InternalTenantAccessTokenReq;
 import com.lark.oapi.service.auth.v3.model.InternalTenantAccessTokenReqBody;
 import com.lark.oapi.service.auth.v3.model.InternalTenantAccessTokenResp;
-import io.github.newbie.feishu.config.FeishuProperties;
+import io.github.feishu.bridge.config.FeishuProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
