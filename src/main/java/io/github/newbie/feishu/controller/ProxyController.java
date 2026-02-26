@@ -15,8 +15,11 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.client.RestClient;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
@@ -30,7 +33,7 @@ public class ProxyController {
 
     private final Client feishuClient;
     private final FeishuProperties feishuProperties;
-    private final RestClient restClient;
+    private final HttpClient httpClient;
 
     @PostMapping("/**")
     public ResponseEntity<String> proxy(@RequestBody String body, HttpServletRequest request) throws Exception {
@@ -45,17 +48,17 @@ public class ProxyController {
 
         log.info("代理转发: POST {} -> {}", request.getRequestURI(), targetUrl);
 
-        String response = restClient.post()
-                .uri(targetUrl)
+        HttpRequest httpRequest = HttpRequest.newBuilder()
+                .uri(URI.create(targetUrl))
                 .header("Authorization", "Bearer " + token)
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(body)
-                .retrieve()
-                .body(String.class);
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(body))
+                .build();
+        HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
 
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(response);
+                .body(response.body());
     }
 
     @SuppressWarnings("unchecked")

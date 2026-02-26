@@ -1,14 +1,18 @@
 package io.github.newbie.feishu.service;
 
+import com.lark.oapi.core.utils.Jsons;
 import io.github.newbie.feishu.config.FeishuProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.MediaType;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestClient;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 
 @Slf4j
@@ -17,7 +21,7 @@ import java.util.Map;
 public class WebhookForwardService {
 
     private final FeishuProperties feishuProperties;
-    private final RestClient restClient;
+    private final HttpClient httpClient;
 
     @Async
     public void forwardEvent(String eventType, Object payload) {
@@ -30,8 +34,8 @@ public class WebhookForwardService {
     }
 
     private void forward(String type, String eventType, Object payload) {
-        String url = feishuProperties.getWebhook().getUrl();
-        if (url == null || url.isBlank()) {
+        List<String> urls = feishuProperties.getWebhook().getUrls();
+        if (urls == null || urls.isEmpty()) {
             log.warn("webhook URL 未配置，跳过转发: type={}", type);
             return;
         }
@@ -43,16 +47,23 @@ public class WebhookForwardService {
                 "payload", payload
         );
 
-        try {
-            restClient.post()
-                    .uri(url)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(body)
-                    .retrieve()
-                    .toBodilessEntity();
-            log.info("webhook 转发成功: type={}, event_type={}, url={}", type, eventType, url);
-        } catch (Exception e) {
-            log.error("webhook 转发失败: type={}, url={}", type, url, e);
+        String json = Jsons.DEFAULT.toJson(body);
+
+        for (String url : urls) {
+            if (url == null || url.isBlank()) {
+                continue;
+            }
+            try {
+                HttpRequest request = HttpRequest.newBuilder()
+                        .uri(URI.create(url))
+                        .header("Content-Type", "application/json")
+                        .POST(HttpRequest.BodyPublishers.ofString(json))
+                        .build();
+                httpClient.send(request, HttpResponse.BodyHandlers.discarding());
+                log.info("webhook 转发成功: type={}, event_type={}, url={}", type, eventType, url);
+            } catch (Exception e) {
+                log.error("webhook 转发失败: type={}, url={}", type, url, e);
+            }
         }
     }
 }

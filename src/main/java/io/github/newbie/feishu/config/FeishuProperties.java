@@ -3,6 +3,9 @@ package io.github.newbie.feishu.config;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @Data
 @ConfigurationProperties(prefix = "feishu")
 public class FeishuProperties {
@@ -13,6 +16,6 @@ public class FeishuProperties {
 
     @Data
     public static class Webhook {
-        private String url;
+        private List<String> urls = new ArrayList<>();
     }
 }

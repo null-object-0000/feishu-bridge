@@ -32,7 +32,7 @@ cd newbie-feishu
 ```env
 FEISHU_APP_ID=cli_xxxxxxxxxxxx
 FEISHU_APP_SECRET=xxxxxxxxxxxxxxxxxxxxxxxx
-FEISHU_WEBHOOK_URL=http://your-target-webhook-url
+FEISHU_WEBHOOK_URLS=http://your-target-webhook-url-1,http://your-target-webhook-url-2
 ```
 
 3. 启动服务：
@@ -47,7 +47,7 @@ docker compose up -d
 # 设置环境变量
 export FEISHU_APP_ID=cli_xxxxxxxxxxxx
 export FEISHU_APP_SECRET=xxxxxxxxxxxxxxxxxxxxxxxx
-export FEISHU_WEBHOOK_URL=http://your-target-webhook-url
+export FEISHU_WEBHOOK_URLS=http://your-target-webhook-url-1,http://your-target-webhook-url-2
 
 # 编译运行
 ./mvnw spring-boot:run
@@ -99,7 +99,7 @@ Authorization: Bearer t-g1xxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 ## Webhook 转发格式
 
-当通过长连接收到飞书事件或卡片回调时，服务会将数据 POST 到 `FEISHU_WEBHOOK_URL`。
+当通过长连接收到飞书事件或卡片回调时，服务会将数据 POST 到 `FEISHU_WEBHOOK_URLS` 中配置的所有目标地址（逗号分隔，支持多个）。
 
 ### 事件转发
 
@@ -155,10 +155,10 @@ newbie-feishu ──转发──→ 飞书服务端
 
 2. **在 Dify 中创建 Workflow**，添加一个 HTTP 触发器（Webhook），获取 Webhook URL
 
-3. **设置 `FEISHU_WEBHOOK_URL`** 指向 Dify 的 Webhook URL：
+3. **设置 `FEISHU_WEBHOOK_URLS`** 包含 Dify 的 Webhook URL（多个地址用逗号分隔）：
 
 ```env
-FEISHU_WEBHOOK_URL=https://api.dify.ai/v1/workflows/run
+FEISHU_WEBHOOK_URLS=https://api.dify.ai/v1/workflows/run
 ```
 
 4. **在 Dify Workflow 中添加 HTTP 请求节点**，用于回复飞书用户。请求配置：
