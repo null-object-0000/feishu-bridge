@@ -1,5 +1,6 @@
 package io.github.feishu.bridge.service;
 
+import io.github.feishu.bridge.config.StreamingProperties;
 import io.github.feishu.bridge.streaming.StreamingProvider;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,6 +13,10 @@ import java.io.InputStreamReader;
 import java.net.http.HttpClient;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -27,18 +32,40 @@ public class StreamingReplyService {
     private final StreamingProvider streamingProvider;
     private final FeishuApiService feishuApi;
     private final HttpClient httpClient;
+    private final boolean useReplyMode;
+    private final boolean memoryEnabled;
+    private final int memoryMaxMessages;
+    private final String providerType;
+    private final ConversationLogService logService;
 
     @Autowired
     public StreamingReplyService(StreamingProvider streamingProvider,
                                   FeishuApiService feishuApi,
-                                  HttpClient httpClient) {
+                                  HttpClient httpClient,
+                                  StreamingProperties streamingProperties,
+                                  @Autowired(required = false) ConversationLogService logService) {
         this.streamingProvider = streamingProvider;
         this.feishuApi = feishuApi;
         this.httpClient = httpClient;
+        this.logService = logService;
+        this.providerType = streamingProperties.getProvider();
+        this.memoryEnabled = streamingProperties.getMemory().isEnabled();
+        int cfgMax = streamingProperties.getMemory().getMaxMessages();
+        this.memoryMaxMessages = cfgMax <= 0 ? Integer.MAX_VALUE : cfgMax;
+        this.useReplyMode = streamingProperties.isReplyMode() || this.memoryEnabled;
+        if (this.useReplyMode) {
+            log.info("[streaming] 回复模式已开启（reply-mode={}, memory.enabled={}）",
+                    streamingProperties.isReplyMode(), this.memoryEnabled);
+        }
+        if (this.memoryEnabled) {
+            log.info("[streaming] 会话记忆已开启，通过飞书 API 获取历史，maxMessages={}",
+                    cfgMax <= 0 ? "无限制" : cfgMax);
+        }
     }
 
     @Async
-    public void handleMessage(String openId, String userQuery) {
+    public void handleMessage(String openId, String userQuery,
+                              String userMessageId, String parentId, String threadId) {
         long startTime = System.currentTimeMillis();
         long firstContentTime = 0;
         int contentChunks = 0;
@@ -53,26 +80,45 @@ public class StreamingReplyService {
         int gapChunks = 0;
         long maxGapMs = 0;
 
+        // 日志采集
+        String historySource = "none";
+        List<Map<String, String>> history = List.of();
+        String requestUrl = null;
+        int httpStatus = -1;
+        String errorBody = null;
+        String replyMessageId = null;
+
         try {
-            var request = streamingProvider.buildRequest(userQuery, openId);
-            log.info("[streaming] 开始请求: openId={}, query={}",
-                    openId, truncate(userQuery, 80));
+            if (memoryEnabled) {
+                if (threadId != null) {
+                    history = feishuApi.fetchThreadHistory(threadId, memoryMaxMessages);
+                    historySource = "thread";
+                    log.info("[memory] 获取话题历史: threadId={}, historySize={}", threadId, history.size());
+                } else if (parentId != null) {
+                    history = feishuApi.fetchReplyChainHistory(parentId, memoryMaxMessages);
+                    historySource = "reply_chain";
+                    log.info("[memory] 获取回复链历史: parentId={}, historySize={}", parentId, history.size());
+                }
+            }
+
+            var request = streamingProvider.buildRequest(userQuery, openId, history);
+            requestUrl = request.uri().toString();
+            log.info("[streaming] 开始请求: openId={}, query={}, historySize={}",
+                    openId, truncate(userQuery, 80), history.size());
 
             var response = httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
             long apiResponseTime = System.currentTimeMillis();
+            httpStatus = response.statusCode();
             log.info("[streaming] API 响应: status={}, 耗时={}ms",
-                    response.statusCode(), apiResponseTime - startTime);
+                    httpStatus, apiResponseTime - startTime);
 
-            int statusCode = response.statusCode();
-            if (statusCode != 200) {
-                String errorBody;
+            if (httpStatus != 200) {
                 try (var is = response.body()) {
                     errorBody = new String(is.readAllBytes(), StandardCharsets.UTF_8);
                 }
-                log.error("[streaming] API 返回非 200: status={}, body={}", statusCode, errorBody);
-                var errorCard = FeishuApiService.buildMarkdownCard(
-                        "调用 AI 服务失败 (HTTP " + statusCode + ")");
-                feishuApi.sendMessage(openId, "open_id", "interactive", errorCard);
+                log.error("[streaming] API 返回非 200: status={}, body={}", httpStatus, errorBody);
+                sendErrorCard(openId, userMessageId,
+                        "调用 AI 服务失败 (HTTP " + httpStatus + ")");
                 return;
             }
 
@@ -97,12 +143,13 @@ public class StreamingReplyService {
                     String data = line.substring(line.startsWith("data: ") ? 6 : 5).trim();
                     if (data.isEmpty()) continue;
 
+                    streamingProvider.onStreamData(openId, data);
+
                     if (streamingProvider.isDone(data)) {
                         log.debug("[streaming] SSE 流结束信号");
                         break;
                     }
 
-                    // --- 推理/思考内容 ---
                     String reasoning = streamingProvider.parseReasoningChunk(data);
                     if (reasoning != null && !reasoning.isEmpty()) {
                         reasoningChunks++;
@@ -115,7 +162,6 @@ public class StreamingReplyService {
                         }
                     }
 
-                    // --- 正文内容 ---
                     String chunk = streamingProvider.parseChunk(data);
                     if (chunk == null || chunk.isEmpty()) continue;
 
@@ -142,7 +188,6 @@ public class StreamingReplyService {
 
                     accumulated.append(chunk);
 
-                    // 实时统计日志
                     if (chunkTime - lastLogTime >= LOG_INTERVAL_MS) {
                         double elapsedSec = (chunkTime - firstContentTime) / 1000.0;
                         double speed = elapsedSec > 0 ? contentChars / elapsedSec : 0;
@@ -156,24 +201,12 @@ public class StreamingReplyService {
                         lastLogChars = contentChars;
                     }
 
-                    // 首次有内容时异步创建卡片，之后异步更新（读取线程永不阻塞）
                     if (messageIdFuture == null) {
                         String firstContent = accumulated.toString();
                         String theOpenId = openId;
-                        messageIdFuture = CompletableFuture.supplyAsync(() -> {
-                            try {
-                                var card = FeishuApiService.buildMarkdownCard(firstContent);
-                                var createResp = feishuApi.sendMessage(theOpenId, "open_id", "interactive", card);
-                                if (createResp.success()) {
-                                    return createResp.getData().getMessageId();
-                                }
-                                log.error("[streaming] 创建卡片失败: code={}, msg={}",
-                                        createResp.getCode(), createResp.getMsg());
-                            } catch (Exception e) {
-                                log.error("[streaming] 创建卡片异常", e);
-                            }
-                            return null;
-                        });
+                        String theMsgId = userMessageId;
+                        messageIdFuture = CompletableFuture.supplyAsync(() ->
+                                sendFirstCard(theOpenId, theMsgId, firstContent));
                         lastCardUpdate = chunkTime;
                     } else if (messageIdFuture.isDone()
                             && chunkTime - lastCardUpdate >= CARD_UPDATE_INTERVAL_MS
@@ -194,17 +227,16 @@ public class StreamingReplyService {
 
             // --- 最终更新 ---
             if (messageIdFuture != null) {
-                String msgId = messageIdFuture.get(10, TimeUnit.SECONDS);
-                if (msgId != null && !accumulated.isEmpty()) {
+                replyMessageId = messageIdFuture.get(10, TimeUnit.SECONDS);
+                if (replyMessageId != null && !accumulated.isEmpty()) {
                     for (int i = 0; i < 100 && cardUpdating.get(); i++) {
                         Thread.sleep(20);
                     }
-                    safeUpdateCard(msgId, accumulated.toString());
+                    safeUpdateCard(replyMessageId, accumulated.toString());
                 }
             } else {
                 log.warn("[streaming] 流式响应无内容，共读取 {} 行 SSE 数据", sseLineCount);
-                var errorCard = FeishuApiService.buildMarkdownCard("AI 未返回有效内容");
-                feishuApi.sendMessage(openId, "open_id", "interactive", errorCard);
+                sendErrorCard(openId, userMessageId, "AI 未返回有效内容");
             }
 
             // --- 最终统计 ---
@@ -232,8 +264,129 @@ public class StreamingReplyService {
             log.info("[streaming]   间隔chunks    : {} (间隔≥50ms, 最大间隔={}ms)", gapChunks, maxGapMs);
             log.info("[streaming] =======================");
 
+            // --- 对话日志 ---
+            saveConversationLog(openId, userQuery, userMessageId, parentId, threadId,
+                    historySource, history, requestUrl, httpStatus, null,
+                    accumulated.toString(), replyMessageId,
+                    totalMs, ttft, contentChunks, contentChars,
+                    reasoningChunks, reasoningChars, sseLineCount,
+                    overallSpeed, contentSpeed);
+
         } catch (Exception e) {
             log.error("[streaming] 回复失败: openId={}", openId, e);
+            long totalMs = System.currentTimeMillis() - startTime;
+            saveConversationLog(openId, userQuery, userMessageId, parentId, threadId,
+                    historySource, history, requestUrl, httpStatus, errorBody != null ? errorBody : e.getMessage(),
+                    null, null,
+                    totalMs, -1, contentChunks, contentChars,
+                    reasoningChunks, reasoningChars, sseLineCount, 0, 0);
+        }
+    }
+
+    private void saveConversationLog(String openId, String userQuery,
+                                     String userMessageId, String parentId, String threadId,
+                                     String historySource, List<Map<String, String>> history,
+                                     String requestUrl, int httpStatus, String error,
+                                     String aiReply, String replyMessageId,
+                                     long totalMs, long ttftMs,
+                                     int contentChunks, int contentChars,
+                                     int reasoningChunks, int reasoningChars,
+                                     int sseLines, double overallSpeed, double contentSpeed) {
+        if (logService == null) return;
+        try {
+            var data = new LinkedHashMap<String, Object>();
+            data.put("timestamp", Instant.now().toString());
+            data.put("openId", openId);
+            data.put("userMessageId", userMessageId);
+            data.put("parentId", parentId);
+            data.put("threadId", threadId);
+            data.put("userQuery", userQuery);
+
+            data.put("config", Map.of(
+                    "provider", providerType,
+                    "replyMode", useReplyMode,
+                    "memoryEnabled", memoryEnabled,
+                    "memoryMaxMessages", memoryMaxMessages == Integer.MAX_VALUE ? "unlimited" : memoryMaxMessages
+            ));
+
+            var historyMap = new LinkedHashMap<String, Object>();
+            historyMap.put("source", historySource);
+            historyMap.put("sourceId", "thread".equals(historySource) ? threadId
+                    : "reply_chain".equals(historySource) ? parentId : null);
+            historyMap.put("count", history.size());
+            historyMap.put("messages", history);
+            data.put("history", historyMap);
+
+            var requestMap = new LinkedHashMap<String, Object>();
+            requestMap.put("url", requestUrl);
+            data.put("request", requestMap);
+
+            var responseMap = new LinkedHashMap<String, Object>();
+            responseMap.put("httpStatus", httpStatus);
+            responseMap.put("aiReply", aiReply);
+            responseMap.put("error", error);
+            data.put("response", responseMap);
+
+            data.put("metrics", Map.of(
+                    "totalMs", totalMs,
+                    "ttftMs", ttftMs,
+                    "contentChunks", contentChunks,
+                    "contentChars", contentChars,
+                    "reasoningChunks", reasoningChunks,
+                    "reasoningChars", reasoningChars,
+                    "sseLines", sseLines,
+                    "overallSpeed", String.format("%.1f 字/秒", overallSpeed),
+                    "contentSpeed", String.format("%.1f 字/秒", contentSpeed)
+            ));
+
+            var resultMap = new LinkedHashMap<String, Object>();
+            resultMap.put("replyMessageId", replyMessageId);
+            resultMap.put("mode", useReplyMode ? "reply" : "send");
+            resultMap.put("success", error == null && aiReply != null);
+            data.put("result", resultMap);
+
+            logService.save(data);
+        } catch (Exception e) {
+            log.warn("[conv-log] 构建对话日志失败", e);
+        }
+    }
+
+    /**
+     * 发送第一张卡片：reply 模式回复原消息，否则直接私信。
+     * 返回新消息的 messageId，失败返回 null。
+     */
+    private String sendFirstCard(String openId, String userMessageId, String content) {
+        var card = FeishuApiService.buildMarkdownCard(content);
+        try {
+            if (useReplyMode && userMessageId != null) {
+                var resp = feishuApi.replyMessage(userMessageId, "interactive", card);
+                if (resp.success()) {
+                    return resp.getData().getMessageId();
+                }
+                log.error("[streaming] 回复卡片失败: code={}, msg={}", resp.getCode(), resp.getMsg());
+            } else {
+                var resp = feishuApi.sendMessage(openId, "open_id", "interactive", card);
+                if (resp.success()) {
+                    return resp.getData().getMessageId();
+                }
+                log.error("[streaming] 创建卡片失败: code={}, msg={}", resp.getCode(), resp.getMsg());
+            }
+        } catch (Exception e) {
+            log.error("[streaming] 发送卡片异常", e);
+        }
+        return null;
+    }
+
+    private void sendErrorCard(String openId, String userMessageId, String errorText) {
+        try {
+            var card = FeishuApiService.buildMarkdownCard(errorText);
+            if (useReplyMode && userMessageId != null) {
+                feishuApi.replyMessage(userMessageId, "interactive", card);
+            } else {
+                feishuApi.sendMessage(openId, "open_id", "interactive", card);
+            }
+        } catch (Exception e) {
+            log.error("[streaming] 发送错误卡片失败", e);
         }
     }
 

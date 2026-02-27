@@ -20,6 +20,15 @@
 飞书用户发消息 → Feishu Bridge → AI 模型 API → 流式回复 → 飞书卡片实时更新
 ```
 
+支持以下增强能力：
+
+- **回复模式**：开启后，AI 回复会挂在用户原消息下方（而非单独发一条新消息），在群聊中方便追踪上下文
+- **会话记忆**：开启后自动启用回复模式，通过飞书消息 API 获取历史对话，以 user/assistant 交替形式发送给 LLM，实现多轮对话。支持两种场景：
+  - **话题（Thread）**：通过 `thread_id` 调用飞书获取会话历史消息接口，一次拉取话题内所有消息
+  - **回复链（Reply）**：沿消息的 `parent_id` 逐条向上回溯，适用于普通群聊/私聊中的回复对话
+  - 无需本地存储，服务重启也不丢失历史
+- **对话日志**：开启后每次对话自动保存一份 JSON 文件，包含用户输入、历史消息、AI 请求/响应、性能指标等完整信息，方便排障。可配置保留最近 N 份
+
 两种模式可以同时开启。
 
 ## 快速开始
@@ -29,7 +38,7 @@
 1. 打开 [飞书开放平台](https://open.feishu.cn/)，创建一个**企业自建应用**
 2. 记下 **App ID** 和 **App Secret**
 3. 进入「事件订阅」，选择 **使用长连接接收事件**
-4. 如果要用 AI 自动回复，还需要在「权限管理」中开通 **消息读写** 相关权限
+4. 如果要用 AI 自动回复，还需要在「权限管理」中开通 **消息读写** 相关权限（发送消息、读取消息、更新消息）
 
 ### 2. 配置 `.env`
 
@@ -48,6 +57,17 @@ STREAMING_OPENAI_API_URL=https://api.openai.com/v1/chat/completions
 STREAMING_OPENAI_API_KEY=sk-xxxx
 STREAMING_OPENAI_MODEL=gpt-4o
 STREAMING_OPENAI_SYSTEM_PROMPT=你是一个有帮助的助手
+
+# 回复模式（可选，AI 回复挂在用户原消息下方）
+STREAMING_REPLY_MODE=true
+
+# 会话记忆（可选，开启后自动启用回复模式，0 表示不限制历史条数）
+STREAMING_MEMORY_ENABLED=true
+STREAMING_MEMORY_MAX_MESSAGES=0
+
+# 对话日志（可选，每次对话保存一份 JSON 文件，方便排障）
+STREAMING_LOG_ENABLED=true
+STREAMING_LOG_MAX_FILES=100
 ```
 
 ### 3. 启动
@@ -72,20 +92,53 @@ docker compose up -d
 
 ## 环境变量一览
 
+### 基础配置
+
 | 变量 | 必填 | 默认值 | 说明 |
 |------|------|--------|------|
 | `FEISHU_APP_ID` | 是 | | 飞书应用 App ID |
 | `FEISHU_APP_SECRET` | 是 | | 飞书应用 App Secret |
 | `FEISHU_WEBHOOK_URLS` | 否 | | Webhook 目标地址，多个用逗号分隔 |
+
+### Streaming AI 自动回复
+
+| 变量 | 必填 | 默认值 | 说明 |
+|------|------|--------|------|
 | `STREAMING_ENABLED` | 否 | `false` | 是否开启 AI 流式自动回复 |
 | `STREAMING_PROVIDER` | 否 | `openai` | AI 提供商：`openai` 或 `dify` |
-| `STREAMING_OPENAI_API_URL` | 否 | OpenAI 官方地址 | OpenAI 兼容接口地址 |
+| `STREAMING_REPLY_MODE` | 否 | `false` | 是否以回复原消息形式发送（开启 memory 时强制生效） |
+
+### OpenAI 兼容接口
+
+| 变量 | 必填 | 默认值 | 说明 |
+|------|------|--------|------|
+| `STREAMING_OPENAI_API_URL` | 否 | OpenAI 官方地址 | 接口地址（兼容 DeepSeek / Moonshot / Ollama 等） |
 | `STREAMING_OPENAI_API_KEY` | 否 | | API Key |
 | `STREAMING_OPENAI_MODEL` | 否 | `gpt-4o` | 模型名称 |
 | `STREAMING_OPENAI_SYSTEM_PROMPT` | 否 | | 系统提示词 |
+
+### Dify
+
+| 变量 | 必填 | 默认值 | 说明 |
+|------|------|--------|------|
 | `STREAMING_DIFY_API_URL` | 否 | | Dify API 地址 |
 | `STREAMING_DIFY_API_KEY` | 否 | | Dify API Key |
 | `STREAMING_DIFY_APP_TYPE` | 否 | `chat` | Dify 应用类型：`chat` 或 `workflow` |
+
+### 会话记忆
+
+| 变量 | 必填 | 默认值 | 说明 |
+|------|------|--------|------|
+| `STREAMING_MEMORY_ENABLED` | 否 | `false` | 是否开启会话记忆（开启后自动启用回复模式） |
+| `STREAMING_MEMORY_MAX_MESSAGES` | 否 | `0` | 获取的最大历史消息条数，`0` 表示不限制 |
+
+### 对话日志
+
+| 变量 | 必填 | 默认值 | 说明 |
+|------|------|--------|------|
+| `STREAMING_LOG_ENABLED` | 否 | `false` | 是否开启对话日志（每次对话保存一份 JSON 文件） |
+| `STREAMING_LOG_DIR` | 否 | `logs/conversations` | 日志文件存放目录 |
+| `STREAMING_LOG_MAX_FILES` | 否 | `100` | 保留最近几份日志文件，`0` 表示不限制 |
 
 ## Webhook 转发格式
 
@@ -150,6 +203,7 @@ curl -X POST 'http://localhost:9811/api/feishu/im/v1/messages?receive_id_type=op
 - 多实例部署时只有一个随机实例收到消息
 - 每个应用最多建立 50 个长连接
 - 仅支持**企业自建应用**
+- 开启会话记忆需要应用具有**获取群组中所有消息**或**获取与发送单聊、群组消息**权限
 
 ## License
 

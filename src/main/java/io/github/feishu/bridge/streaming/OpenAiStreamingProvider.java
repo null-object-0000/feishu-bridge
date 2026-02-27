@@ -17,10 +17,13 @@ public class OpenAiStreamingProvider implements StreamingProvider {
     private final StreamingProperties.OpenAi config;
 
     @Override
-    public HttpRequest buildRequest(String userQuery, String userId) {
+    public HttpRequest buildRequest(String userQuery, String userId, List<Map<String, String>> history) {
         var messages = new ArrayList<Map<String, String>>();
         if (config.getSystemPrompt() != null && !config.getSystemPrompt().isBlank()) {
             messages.add(Map.of("role", "system", "content", config.getSystemPrompt()));
+        }
+        if (history != null) {
+            messages.addAll(history);
         }
         messages.add(Map.of("role", "user", "content", userQuery));
 

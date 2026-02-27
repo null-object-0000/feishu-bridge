@@ -7,28 +7,41 @@ import lombok.RequiredArgsConstructor;
 import java.net.URI;
 import java.net.http.HttpRequest;
 import java.time.Duration;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @RequiredArgsConstructor
 public class DifyStreamingProvider implements StreamingProvider {
 
     private final StreamingProperties.Dify config;
 
+    /** userId → Dify conversation_id，用于多轮对话 */
+    private final ConcurrentHashMap<String, String> conversationIds = new ConcurrentHashMap<>();
+
     @Override
-    public HttpRequest buildRequest(String userQuery, String userId) {
+    public HttpRequest buildRequest(String userQuery, String userId, List<Map<String, String>> history) {
         boolean isWorkflow = "workflow".equalsIgnoreCase(config.getAppType());
         String apiPath = isWorkflow ? "/workflows/run" : "/chat-messages";
 
-        Object body = isWorkflow
-                ? Map.of(
+        Map<String, Object> body;
+        if (isWorkflow) {
+            body = new HashMap<>(Map.of(
                     "inputs", Map.of("query", userQuery),
                     "response_mode", "streaming",
-                    "user", userId)
-                : Map.of(
+                    "user", userId));
+        } else {
+            body = new HashMap<>(Map.of(
                     "inputs", Map.of(),
                     "query", userQuery,
                     "response_mode", "streaming",
-                    "user", userId);
+                    "user", userId));
+            String convId = conversationIds.get(userId);
+            if (convId != null) {
+                body.put("conversation_id", convId);
+            }
+        }
 
         return HttpRequest.newBuilder()
                 .uri(URI.create(config.getApiUrl() + apiPath))
@@ -37,6 +50,20 @@ public class DifyStreamingProvider implements StreamingProvider {
                 .POST(HttpRequest.BodyPublishers.ofString(Jsons.DEFAULT.toJson(body)))
                 .timeout(Duration.ofSeconds(120))
                 .build();
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public void onStreamData(String userId, String sseData) {
+        if ("workflow".equalsIgnoreCase(config.getAppType())) return;
+        try {
+            var map = (Map<String, Object>) Jsons.DEFAULT.fromJson(sseData, Map.class);
+            String convId = (String) map.get("conversation_id");
+            if (convId != null && !convId.isEmpty()) {
+                conversationIds.put(userId, convId);
+            }
+        } catch (Exception ignored) {
+        }
     }
 
     @Override

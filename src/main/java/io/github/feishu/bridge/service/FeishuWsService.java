@@ -158,12 +158,16 @@ public class FeishuWsService implements SmartLifecycle {
             String msgType = (String) message.get("message_type");
             if (!"text".equals(msgType)) return;
 
+            String messageId = (String) message.get("message_id");
+            String parentId = (String) message.get("parent_id");
+            String threadId = (String) message.get("thread_id");
+
             String contentJson = (String) message.get("content");
             Map<String, Object> content = Jsons.DEFAULT.fromJson(contentJson, Map.class);
             String text = (String) content.get("text");
 
             if (openId != null && text != null && !text.isBlank()) {
-                streamingReplyService.handleMessage(openId, text);
+                streamingReplyService.handleMessage(openId, text, messageId, parentId, threadId);
             }
         } catch (Exception e) {
             log.warn("解析消息事件失败，跳过流式回复", e);
