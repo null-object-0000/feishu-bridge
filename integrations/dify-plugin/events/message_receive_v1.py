@@ -5,6 +5,7 @@ from werkzeug import Request
 
 from dify_plugin.entities.trigger import Variables
 from dify_plugin.interfaces.trigger import Event
+from dify_plugin.errors.trigger import EventIgnoreError
 
 
 class MessageReceiveV1Event(Event):
@@ -25,23 +26,30 @@ class MessageReceiveV1Event(Event):
     ) -> Variables:
         body: dict = request.get_json(silent=True) or {}
         gateway_payload: dict = body.get("payload", {})
-
         event: dict = gateway_payload.get("event", gateway_payload)
-        header: dict = gateway_payload.get("header", {})
-
-        sender: dict = event.get("sender", {})
         message: dict = event.get("message", {})
+
+        container_filter = parameters.get("container_type", "")
+        if container_filter:
+            has_thread = bool(message.get("thread_id"))
+            chat_type = message.get("chat_type", "")
+            if container_filter == "thread" and not has_thread:
+                raise EventIgnoreError()
+            elif container_filter == "chat-p2p" and (chat_type != "p2p" or has_thread):
+                raise EventIgnoreError()
+            elif container_filter == "chat-group" and (chat_type != "group" or has_thread):
+                raise EventIgnoreError()
+
+        scene_filter = parameters.get("message_scene", "")
+        if scene_filter:
+            is_reply = bool(message.get("parent_id"))
+            scene = "reply" if is_reply else "normal"
+            if scene != scene_filter:
+                raise EventIgnoreError()
 
         return Variables(
             variables={
-                "sender_id": sender.get("sender_id", {}),
-                "message_id": message.get("message_id", ""),
-                "chat_id": message.get("chat_id", ""),
-                "chat_type": message.get("chat_type", ""),
-                "message_type": message.get("message_type", ""),
-                "content": message.get("content", ""),
-                "create_time": message.get("create_time", ""),
-                "event_id": header.get("event_id", ""),
-                "raw_payload": gateway_payload,
+                "sender": event.get("sender", {}),
+                "message": message,
             }
         )

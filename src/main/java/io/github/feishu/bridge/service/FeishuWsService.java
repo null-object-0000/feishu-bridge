@@ -11,6 +11,7 @@ import com.lark.oapi.event.cardcallback.model.P2CardActionTriggerResponse;
 import io.github.feishu.bridge.config.FeishuProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.SmartLifecycle;
 import org.springframework.stereotype.Service;
 
@@ -26,6 +27,9 @@ public class FeishuWsService implements SmartLifecycle {
 
     private final FeishuProperties feishuProperties;
     private final WebhookForwardService webhookForwardService;
+
+    @Autowired(required = false)
+    private StreamingReplyService streamingReplyService;
 
     private volatile com.lark.oapi.ws.Client wsClient;
     private volatile boolean running = false;
@@ -56,6 +60,10 @@ public class FeishuWsService implements SmartLifecycle {
                 log.info("收到事件: type={}", eventType);
                 Object payload = parseJsonSafely(eventData);
                 webhookForwardService.forwardEvent(eventType, payload);
+
+                if ("im.message.receive_v1".equals(eventType) && streamingReplyService != null) {
+                    tryStreamingReply(eventData);
+                }
             }
         };
 
@@ -130,6 +138,36 @@ public class FeishuWsService implements SmartLifecycle {
     @Override
     public int getPhase() {
         return Integer.MAX_VALUE;
+    }
+
+    @SuppressWarnings("unchecked")
+    private void tryStreamingReply(String eventData) {
+        try {
+            Map<String, Object> parsed = Jsons.DEFAULT.fromJson(eventData, Map.class);
+            Map<String, Object> event = (Map<String, Object>) parsed.get("event");
+            if (event == null) return;
+
+            Map<String, Object> sender = (Map<String, Object>) event.get("sender");
+            Map<String, Object> message = (Map<String, Object>) event.get("message");
+            if (sender == null || message == null) return;
+
+            Map<String, Object> senderId = (Map<String, Object>) sender.get("sender_id");
+            if (senderId == null) return;
+            String openId = (String) senderId.get("open_id");
+
+            String msgType = (String) message.get("message_type");
+            if (!"text".equals(msgType)) return;
+
+            String contentJson = (String) message.get("content");
+            Map<String, Object> content = Jsons.DEFAULT.fromJson(contentJson, Map.class);
+            String text = (String) content.get("text");
+
+            if (openId != null && text != null && !text.isBlank()) {
+                streamingReplyService.handleMessage(openId, text);
+            }
+        } catch (Exception e) {
+            log.warn("解析消息事件失败，跳过流式回复", e);
+        }
     }
 
     @SuppressWarnings("unchecked")

@@ -2,47 +2,159 @@ identity:
   name: "message_receive_v1"
   author: "null-object-0000"
   label:
-    en_US: "Message Received"
-    zh_Hans: "收到消息"
-    ja_JP: "メッセージ受信"
+    en_US: "Receive Message (im.message.receive_v1)"
+    zh_Hans: "接收消息（im.message.receive_v1）"
+    ja_JP: "メッセージを受信（im.message.receive_v1）"
 
 description:
-  en_US: "Triggered when a message is received in Feishu (im.message.receive_v1)."
-  zh_Hans: "当飞书收到消息时触发（im.message.receive_v1）。"
-  ja_JP: "飛書でメッセージを受信した時にトリガーされます（im.message.receive_v1）。"
+  en_US: "Triggered when a user sends a message to the bot or in a group where the bot is a member. Docs: https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/im-v1/message/events/receive"
+  zh_Hans: "机器人接收到用户发送的消息后触发此事件。了解事件体字段详情，参考飞书官方文档：https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/im-v1/message/events/receive"
+  ja_JP: "ユーザーがボットにメッセージを送信した時、またはボットが参加しているグループでメッセージが送信された時にトリガーされます。ドキュメント：https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/im-v1/message/events/receive"
 
-parameters: []
+parameters:
+  - name: container_type
+    label:
+      en_US: "Container Type Filter"
+      zh_Hans: "容器类型过滤"
+      ja_JP: "コンテナタイプフィルター"
+    type: select
+    required: false
+    options:
+      - value: ""
+        label:
+          en_US: "All"
+          zh_Hans: "全部"
+          ja_JP: "すべて"
+      - value: "chat-p2p"
+        label:
+          en_US: "Private Chat (chat-p2p)"
+          zh_Hans: "单聊（chat-p2p）"
+          ja_JP: "プライベートチャット（chat-p2p）"
+      - value: "chat-group"
+        label:
+          en_US: "Group Chat (chat-group)"
+          zh_Hans: "群组（chat-group）"
+          ja_JP: "グループチャット（chat-group）"
+      - value: "thread"
+        label:
+          en_US: "Topic (thread)"
+          zh_Hans: "话题（thread）"
+          ja_JP: "トピック（thread）"
+  - name: message_scene
+    label:
+      en_US: "Message Scene Filter"
+      zh_Hans: "消息场景过滤"
+      ja_JP: "メッセージシーンフィルター"
+    type: select
+    required: false
+    options:
+      - value: ""
+        label:
+          en_US: "All"
+          zh_Hans: "全部"
+          ja_JP: "すべて"
+      - value: "reply"
+        label:
+          en_US: "Reply"
+          zh_Hans: "回复"
+          ja_JP: "返信"
+      - value: "normal"
+        label:
+          en_US: "Normal"
+          zh_Hans: "普通"
+          ja_JP: "通常"
 
 output_schema:
   type: object
   properties:
-    sender_id:
+    sender:
       type: object
-      description: "Sender ID object containing union_id, user_id, open_id"
-    message_id:
-      type: string
-      description: "Message ID"
-    chat_id:
-      type: string
-      description: "Chat/Group ID"
-    chat_type:
-      type: string
-      description: "Chat type: p2p or group"
-    message_type:
-      type: string
-      description: "Message type: text, image, etc."
-    content:
-      type: string
-      description: "Message content (JSON string)"
-    create_time:
-      type: string
-      description: "Message creation timestamp (ms)"
-    event_id:
-      type: string
-      description: "Event ID for deduplication"
-    raw_payload:
+      description: "事件的发送者"
+      properties:
+        sender_id:
+          type: object
+          description: "用户 ID。调用获取单个用户信息接口，可通过 ID 获取用户信息。"
+          properties:
+            union_id:
+              type: string
+              description: "用户的 union_id"
+            user_id:
+              type: string
+              description: "用户的 user_id"
+            open_id:
+              type: string
+              description: "用户的 open_id"
+        sender_type:
+          type: string
+          description: "消息发送者类型。目前只支持用户(user)发送的消息。"
+        tenant_key:
+          type: string
+          description: "tenant key，为租户在飞书上的唯一标识，用来换取对应的 tenant_access_token，也可以用作租户在应用里面的唯一标识"
+    message:
       type: object
-      description: "Complete raw event payload from Feishu Bridge gateway"
+      description: "事件中包含的消息内容"
+      properties:
+        message_id:
+          type: string
+          description: "消息 ID。由系统生成的唯一 ID 标识，基于该 ID 可以回复消息 或其他管理消息的操作。"
+        root_id:
+          type: string
+          description: "根消息 ID，仅在回复消息场景会有返回值。了解 root_id 可参见消息管理概述。"
+        parent_id:
+          type: string
+          description: "父消息 ID，仅在回复消息场景会有返回值。了解 parent_id 可参见消息管理概述。"
+        create_time:
+          type: string
+          description: "消息发送时间（毫秒）"
+        update_time:
+          type: string
+          description: "消息更新时间（毫秒）"
+        chat_id:
+          type: string
+          description: "消息所在的群组 ID。调用获取群信息接口，可通过 ID 获取群组信息。"
+        thread_id:
+          type: string
+          description: "消息所属的话题 ID（不返回说明该消息非话题消息）。了解话题可参见话题概述。"
+        chat_type:
+          type: string
+          description: "消息所在的群组类型。可选值有：p2p（单聊）、group（群组）"
+        message_type:
+          type: string
+          description: "消息类型，可能返回的消息类型以及详细介绍，参见接收消息内容。"
+        content:
+          type: string
+          description: "消息内容，JSON 结构序列化后的字符串，不同消息类型（msg_type）对应不同内容。"
+        mentions:
+          type: array
+          description: "被提及用户的信息"
+          items:
+            type: object
+            properties:
+              key:
+                type: string
+                description: "被提及用户序号。例如，第 3 个被 @ 到的成员，取值为 @_user_3"
+              id:
+                type: object
+                description: "被提及用户 ID。调用获取单个用户信息接口，可通过 ID 获取用户信息。"
+                properties:
+                  union_id:
+                    type: string
+                    description: "用户的 union_id"
+                  user_id:
+                    type: string
+                    description: "用户的 user_id"
+                  open_id:
+                    type: string
+                    description: "用户的 open_id"
+              name:
+                type: string
+                description: "被提及用户姓名"
+              tenant_key:
+                type: string
+                description: "tenant key，为租户在飞书上的唯一标识，用来换取对应的tenant_access_token，也可以用作租户在应用里面的唯一标识"
+        user_agent:
+          type: string
+          description: "用户代理数据，仅在接收事件的机器人具备==获取客户端用户代理信息（im:user_agent:read）==权限时返回"
 
 extra:
   python:

@@ -9,7 +9,7 @@ import java.net.http.HttpClient;
 import java.time.Duration;
 
 @Configuration
-@EnableConfigurationProperties(FeishuProperties.class)
+@EnableConfigurationProperties({FeishuProperties.class, StreamingProperties.class})
 public class FeishuClientConfig {
 
     @Bean

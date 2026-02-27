@@ -1,114 +1,97 @@
 # Feishu Bridge
 
-飞书桥接服务 —— 连接飞书开放平台与外部自动化工作流，提供 token 获取、API 代理转发、事件/回调 webhook 转发能力。
+飞书机器人桥接服务。通过飞书 WebSocket 长连接接收消息，可以转发给外部系统，也可以直接对接 AI 模型流式回复。
 
-## 功能特性
+## 两种使用模式
 
-- **获取 tenant_access_token** — `GET /api/auth/tenant_access_token`，SDK 内置缓存，自动续期
-- **飞书 API 代理转发** — `POST /api/feishu/**`，自动注入 `Authorization` 请求头，无需管理 token
-- **WebSocket 长连接** — 基于飞书 SDK 长连接机制接收事件订阅和卡片回调
-- **Webhook 转发** — 将接收到的事件和回调以 JSON 格式异步 POST 到配置的目标 URL
-- **Docker 一键部署** — 通过环境变量配置，`docker compose up -d` 即可启动
+### 模式一：Webhook 转发
 
-## 集成插件
+把飞书收到的消息/事件转发到你指定的 URL，适合对接 n8n、Dify Workflow 等外部自动化平台。同时提供飞书 API 代理，自动注入 token，外部系统回调时不需要自己管理认证。
 
-| 平台 | 插件 | 说明 |
-|------|------|------|
-| n8n | [Feishu Bridge Trigger](integrations/n8n-plugin/) | 接收飞书事件，触发 n8n 工作流 |
-| Dify | [Feishu Bridge](integrations/dify-plugin/) | 接收飞书事件，触发 Dify 工作流 |
+```
+飞书用户发消息 → 飞书服务端 → [WebSocket] → Feishu Bridge → [HTTP POST] → 你的 Webhook
+```
+
+### 模式二：Streaming AI 自动回复
+
+直接对接 AI 模型 API，收到飞书消息后自动调用模型，流式输出回复到飞书卡片。支持所有 OpenAI 兼容接口（OpenAI、DeepSeek、Moonshot、Ollama 等）和 Dify。
+
+```
+飞书用户发消息 → Feishu Bridge → AI 模型 API → 流式回复 → 飞书卡片实时更新
+```
+
+两种模式可以同时开启。
 
 ## 快速开始
 
-### 前置条件
+### 1. 创建飞书应用
 
-1. 在 [飞书开放平台](https://open.feishu.cn/) 创建一个**个人/企业自建应用**
-2. 获取应用的 **App ID** 和 **App Secret**
-3. 在应用的「事件订阅」中选择**使用长连接接收事件**
+1. 打开 [飞书开放平台](https://open.feishu.cn/)，创建一个**企业自建应用**
+2. 记下 **App ID** 和 **App Secret**
+3. 进入「事件订阅」，选择 **使用长连接接收事件**
+4. 如果要用 AI 自动回复，还需要在「权限管理」中开通 **消息读写** 相关权限
 
-### Docker 部署
+### 2. 配置 `.env`
 
-1. 克隆项目：
+```env
+# 必填 —— 飞书应用凭证
+FEISHU_APP_ID=cli_xxxxxxxxxxxx
+FEISHU_APP_SECRET=xxxxxxxxxxxxxxxxxxxxxxxx
+
+# 模式一：Webhook 转发（不用可以留空）
+FEISHU_WEBHOOK_URLS=http://your-webhook-url
+
+# 模式二：Streaming AI 自动回复（不用可以不写）
+STREAMING_ENABLED=true
+STREAMING_PROVIDER=openai
+STREAMING_OPENAI_API_URL=https://api.openai.com/v1/chat/completions
+STREAMING_OPENAI_API_KEY=sk-xxxx
+STREAMING_OPENAI_MODEL=gpt-4o
+STREAMING_OPENAI_SYSTEM_PROMPT=你是一个有帮助的助手
+```
+
+### 3. 启动
+
+**Docker（推荐）：**
 
 ```bash
 git clone https://github.com/null-object-0000/feishu-bridge.git
 cd feishu-bridge
-```
-
-2. 创建 `.env` 文件：
-
-```env
-FEISHU_APP_ID=cli_xxxxxxxxxxxx
-FEISHU_APP_SECRET=xxxxxxxxxxxxxxxxxxxxxxxx
-FEISHU_WEBHOOK_URLS=http://your-target-webhook-url-1,http://your-target-webhook-url-2
-```
-
-3. 启动服务：
-
-```bash
+# 编辑 .env 填入配置
 docker compose up -d
 ```
 
-### 源码运行
+**源码运行：**
 
 ```bash
-# 设置环境变量
-export FEISHU_APP_ID=cli_xxxxxxxxxxxx
-export FEISHU_APP_SECRET=xxxxxxxxxxxxxxxxxxxxxxxx
-export FEISHU_WEBHOOK_URLS=http://your-target-webhook-url-1,http://your-target-webhook-url-2
-
-# 编译运行
+# 设置环境变量（或创建 .env）
 ./mvnw spring-boot:run
 ```
 
-## API 文档
+启动后看到 `飞书 WebSocket 长连接已启动` 就可以在飞书里给机器人发消息了。
 
-### 获取 tenant_access_token
+## 环境变量一览
 
-```
-GET /api/auth/tenant_access_token
-```
-
-响应示例：
-
-```json
-{
-  "tenant_access_token": "t-g1xxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "expire": 7200
-}
-```
-
-### 代理转发飞书 API
-
-```
-POST /api/feishu/{飞书 API 路径}
-```
-
-本服务会将请求转发到 `https://open.feishu.cn/open-apis/{飞书 API 路径}`，自动注入 `Authorization: Bearer {tenant_access_token}` 请求头。暂时仅支持 POST + JSON 模式。
-
-调用示例 — 发送消息：
-
-```bash
-curl -X POST http://localhost:9811/api/feishu/im/v1/messages?receive_id_type=open_id \
-  -H "Content-Type: application/json" \
-  -d '{
-    "receive_id": "ou_xxxxxxxxxxxxxxxxxxxxxxxxxx",
-    "msg_type": "text",
-    "content": "{\"text\": \"Hello from Feishu Bridge!\"}"
-  }'
-```
-
-等价于直接调用飞书 API：
-
-```
-POST https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=open_id
-Authorization: Bearer t-g1xxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-```
+| 变量 | 必填 | 默认值 | 说明 |
+|------|------|--------|------|
+| `FEISHU_APP_ID` | 是 | | 飞书应用 App ID |
+| `FEISHU_APP_SECRET` | 是 | | 飞书应用 App Secret |
+| `FEISHU_WEBHOOK_URLS` | 否 | | Webhook 目标地址，多个用逗号分隔 |
+| `STREAMING_ENABLED` | 否 | `false` | 是否开启 AI 流式自动回复 |
+| `STREAMING_PROVIDER` | 否 | `openai` | AI 提供商：`openai` 或 `dify` |
+| `STREAMING_OPENAI_API_URL` | 否 | OpenAI 官方地址 | OpenAI 兼容接口地址 |
+| `STREAMING_OPENAI_API_KEY` | 否 | | API Key |
+| `STREAMING_OPENAI_MODEL` | 否 | `gpt-4o` | 模型名称 |
+| `STREAMING_OPENAI_SYSTEM_PROMPT` | 否 | | 系统提示词 |
+| `STREAMING_DIFY_API_URL` | 否 | | Dify API 地址 |
+| `STREAMING_DIFY_API_KEY` | 否 | | Dify API Key |
+| `STREAMING_DIFY_APP_TYPE` | 否 | `chat` | Dify 应用类型：`chat` 或 `workflow` |
 
 ## Webhook 转发格式
 
-当通过长连接收到飞书事件或卡片回调时，服务会将数据 POST 到 `FEISHU_WEBHOOK_URLS` 中配置的所有目标地址（逗号分隔，支持多个）。
+收到飞书事件后，会 POST 以下 JSON 到你配置的所有 Webhook URL：
 
-### 事件转发
+**消息事件：**
 
 ```json
 {
@@ -122,7 +105,7 @@ Authorization: Bearer t-g1xxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 }
 ```
 
-### 卡片回调转发
+**卡片回调：**
 
 ```json
 {
@@ -136,60 +119,37 @@ Authorization: Bearer t-g1xxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 }
 ```
 
-## 使用场景：Dify 接入
+## API 代理
 
-Feishu Bridge 可以作为飞书与 [Dify](https://dify.ai) 之间的消息桥梁，实现飞书机器人对接 Dify 的 AI 工作流。
-
-### 架构
+提供飞书 API 代理，自动注入认证 token，方便 Webhook 下游系统回调飞书：
 
 ```
-飞书用户发消息
-    ↓
-飞书服务端 ──WebSocket长连接──→ Feishu Bridge
-    ↓
-Feishu Bridge ──webhook POST──→ Dify Workflow（接收消息、调用 AI）
-    ↓
-Dify ──POST /api/feishu/im/v1/messages──→ Feishu Bridge（自动注入 token）
-    ↓
-Feishu Bridge ──转发──→ 飞书服务端
-    ↓
-飞书用户收到 AI 回复
+POST http://localhost:9811/api/feishu/{飞书 API 路径}
 ```
 
-### 配置步骤
+例如发送消息：
 
-1. **部署 Feishu Bridge**，配置飞书应用的 App ID / App Secret
-
-2. **在 Dify 中创建 Workflow**，添加一个 HTTP 触发器（Webhook），获取 Webhook URL
-
-3. **设置 `FEISHU_WEBHOOK_URLS`** 包含 Dify 的 Webhook URL（多个地址用逗号分隔）：
-
-```env
-FEISHU_WEBHOOK_URLS=https://api.dify.ai/v1/workflows/run
+```bash
+curl -X POST 'http://localhost:9811/api/feishu/im/v1/messages?receive_id_type=open_id' \
+  -H 'Content-Type: application/json' \
+  -d '{"receive_id":"ou_xxx","msg_type":"text","content":"{\"text\":\"Hello!\"}"}'
 ```
 
-4. **在 Dify Workflow 中添加 HTTP 请求节点**，用于回复飞书用户。请求配置：
+不需要传 Authorization，Feishu Bridge 会自动处理。
 
-   - URL: `http://feishu-bridge:9811/api/feishu/im/v1/messages?receive_id_type=open_id`
-   - Method: POST
-   - Body:
+## 集成插件
 
-```json
-{
-  "receive_id": "{{从 webhook 事件中提取的 open_id}}",
-  "msg_type": "text",
-  "content": "{\"text\": \"{{AI 生成的回复}}\"}"
-}
-```
-
-Dify 无需管理飞书的 access_token，Feishu Bridge 会自动注入认证信息。
+| 平台 | 插件 | 说明 |
+|------|------|------|
+| n8n | [Feishu Bridge Trigger](integrations/n8n-plugin/) | 接收飞书事件，触发 n8n 工作流 |
+| Dify | [Feishu Bridge](integrations/dify-plugin/) | 接收飞书事件，触发 Dify 工作流 |
 
 ## 注意事项
 
-- 长连接模式下消息处理需在 3 秒内完成，本服务通过异步转发避免超时
-- 长连接为集群模式，多实例部署时只有一个随机实例收到消息
+- 长连接模式下消息处理需在 3 秒内完成，本服务通过异步处理避免超时
+- 多实例部署时只有一个随机实例收到消息
 - 每个应用最多建立 50 个长连接
-- 仅支持**个人/企业自建应用**
+- 仅支持**企业自建应用**
 
 ## License
 
